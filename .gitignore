@@ -3,3 +3,7 @@
 phase1
 phase1.exe
 vgcore.*
+helper1
+dns_query
+*.o
+
