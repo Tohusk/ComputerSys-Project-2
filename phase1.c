@@ -2,9 +2,12 @@
 #include <stdio.h>
 #include <math.h>
 #include <arpa/inet.h>
+#include <stdlib.h>
+#include <string.h>
 // #define MAXIPV4LENGTH 10
 #define HEADER_SIZE 2
 #define ID_SIZE 2
+#define INITIAL_NUM_LABELS 2
 
 int main(int argc, char* argv[]) {
     // char *ipv4_address = (char*)malloc(MAXIPV4LENGTH*sizeof(char));
@@ -39,7 +42,7 @@ int main(int argc, char* argv[]) {
     // A 4 bit field that specifies the query type. 
     // The possibilities are: - 0: Standard query - 1: Inverse query - 2: Server status request - 3-15: Reserved for future use
     int opcode = (packet_buff[2] >> 3) & 15;
-    printf("opcode = %d\n", opcode);
+    printf("OPCODE = %d\n", opcode);
 
     // 1 bit flag specifying if the message has been truncated.
     int TC = (packet_buff[2] >> 1) & 1;
@@ -66,9 +69,50 @@ int main(int argc, char* argv[]) {
     printf("AR = %d\n", AR);
 
     // QUESTION
+    printf("Question\n");
 
-    // How to get started
 
+    // This contains the URL who’s IP address we wish to find. 
+    // It is encoded as a series of ‘labels’. 
+    // Each label corresponds to a section of the URL. 
+    // The URL example.com contains two sections, example, and com.
+    char **labels = malloc(sizeof(char*) * INITIAL_NUM_LABELS);
+    int labels_size = INITIAL_NUM_LABELS;
+    int num_labels = 0;
+
+    int i=12;
+    // Qname is terminated by 0 byte
+    while (packet_buff[i] != 0) {
+
+        int label_size = packet_buff[i];
+        char *label = malloc(label_size*sizeof(char));
+        i++;
+        for (int j=0; j<label_size; j++) {
+            label[j] = packet_buff[i];
+            i++;
+        }
+
+        // Need to realloc more space
+        if (num_labels == labels_size) {
+            labels = realloc(labels, 2*labels_size*sizeof(char*));
+            labels_size *= 2;
+        }
+        printf("label=%s\n", label);
+        labels[num_labels] = malloc(label_size*sizeof(char));
+        strcpy(labels[num_labels], label);
+        num_labels++;
+    }
+    i++;
+    // The DNS record type we’re looking up. 
+    int QTYPE = (packet_buff[i] << 8) | packet_buff[i+1];
+    printf("QTYPE = %d\n", QTYPE);
+    // 28 record type corresponds to AAAA
+    // 1 record type corresponds to A
+
+    int QCLASS = (packet_buff[i+2] << 8) | packet_buff[i+3];
+    printf("QCLASS = %d\n", QCLASS);
+    // IN CLASS
+    
     // Print the log.
     // Attempt to modularise your code and make it reusable (if you didn’t do so during implementation).
     
