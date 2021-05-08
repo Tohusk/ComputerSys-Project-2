@@ -14,6 +14,13 @@ int main(int argc, char* argv[]) {
     // int portNumber = atoi(argv[2]);
     // strcpy(ipv4_address, argv[1]);
 
+    // LOG 
+    FILE *fptr;
+    int k;
+    fptr = fopen("dns_svr.log", "w");
+
+    // fprintf(fptr, "", )
+
     // Read header
     // 2 bytes = 2 * char
     size_t count = HEADER_SIZE * sizeof(char);
@@ -36,6 +43,7 @@ int main(int argc, char* argv[]) {
     printf("ID = %d\n", ID);
 
     // A 1 bit flag specifying whether this message is a query (0) or a response (1).
+    //TODO IF RESPONSE THEN ANSWER SECTION ELSE NO
     int QR = (packet_buff[2] >> 7) & 1;
     printf("QR = %d\n", QR);
 
@@ -112,9 +120,51 @@ int main(int argc, char* argv[]) {
     int QCLASS = (packet_buff[i+2] << 8) | packet_buff[i+3];
     printf("QCLASS = %d\n", QCLASS);
     // IN CLASS
-    
+    printf("Current byte: %d\n", i);
     // Print the log.
     // Attempt to modularise your code and make it reusable (if you didn’t do so during implementation).
+
+    // Reset index
+    i=i+4;
+    // ANSWER
+    // IF NO ANSWER OR NOT IPV6 DON'T LOG ANYHTING
+    if (QR == 1) {
+        printf("first two bits=%d\n", packet_buff[i] >> 6);
+        // NAME This is the URL who’s IP address this response contains. offset doesn't include the two leading bytes for length of entire message
+        unsigned int NAME = ((packet_buff[i] & 63) << 8) | packet_buff[i+1];
+        printf("NAME = %d\n", NAME);
+
+        // These use the same naming schema as QTYPE and QCLASS above, and have the same values as above.
+        int TYPE = (packet_buff[i+2] << 8) | packet_buff[i+3];
+        printf("TYPE = %d\n", TYPE);
+
+        int CLASS = (packet_buff[i+4] << 8) | packet_buff[i+5];
+        printf("CLASS = %d\n", CLASS);
+
+        unsigned int TTL = (packet_buff[i+6] << 24) | (packet_buff[i+7] << 16) | (packet_buff[i+8] << 8) | packet_buff[i+9];
+        printf("TTL = %d\n", TTL);
+
+        // RDLENGTH: The byte length of the following RDDATA section.
+        int RDLENGTH= (packet_buff[i+10] << 8) | packet_buff[i+11];
+        printf("RDLENGTH = %d\n", RDLENGTH);
+
+        // RDDATA: The IP address IPV6 addresses are 128 bits (network byte order) (high order first)
+        // int RDDATA = (packet_buff[i+12])
+        int IPV6_address[RDLENGTH];
+        for (int j=0; j<RDLENGTH; j++) {
+            IPV6_address[j] = packet_buff[i+12+j];
+        }
+
+        for (int j=0; j<RDLENGTH; j++) {
+            printf("IPV6_address = %x\n", IPV6_address[j]);
+        }
+    }
+
+
+    
+
+
+
     
     return 0;
 }
