@@ -137,10 +137,11 @@ int main(int argc, char* argv[]) {
 
     // Reset index
     i=i+4;
+
     // ANSWER
     // IF NO ANSWER OR NOT IPV6 DON'T LOG ANYHTING
-    if (QR == 1) {
-        printf("first two bits=%d\n", packet_buff[i] >> 6);
+    printf("first two bits=%d\n", packet_buff[i] >> 6);
+    if (QR == 1 && packet_buff[i] >> 6 == 3) {
         // NAME This is the URL who’s IP address this response contains. offset doesn't include the two leading bytes for length of entire message
         unsigned int NAME = ((packet_buff[i] & 63) << 8) | packet_buff[i+1];
         printf("NAME = %d\n", NAME);
