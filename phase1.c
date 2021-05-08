@@ -4,10 +4,15 @@
 #include <arpa/inet.h>
 #include <stdlib.h>
 #include <string.h>
-// #define MAXIPV4LENGTH 10
+#include <time.h>
+
 #define HEADER_SIZE 2
 #define ID_SIZE 2
 #define INITIAL_NUM_LABELS 2
+
+void log_request(FILE *fptr, char **labels, int num_labels);
+void log_response(FILE *fptr, char **labels, int num_labels, unsigned char *address, int num_elements);
+void log_timestamp(FILE *fptr);
 
 int main(int argc, char* argv[]) {
     // char *ipv4_address = (char*)malloc(MAXIPV4LENGTH*sizeof(char));
@@ -16,10 +21,9 @@ int main(int argc, char* argv[]) {
 
     // LOG 
     FILE *fptr;
-    int k;
     fptr = fopen("dns_svr.log", "w");
 
-    // fprintf(fptr, "", )
+    
 
     // Read header
     // 2 bytes = 2 * char
@@ -111,6 +115,13 @@ int main(int argc, char* argv[]) {
         num_labels++;
     }
     i++;
+
+    // print request
+    if (QR == 0) {
+        log_request(fptr, labels, num_labels);
+    }
+
+
     // The DNS record type we’re looking up. 
     int QTYPE = (packet_buff[i] << 8) | packet_buff[i+1];
     printf("QTYPE = %d\n", QTYPE);
@@ -141,6 +152,7 @@ int main(int argc, char* argv[]) {
         int CLASS = (packet_buff[i+4] << 8) | packet_buff[i+5];
         printf("CLASS = %d\n", CLASS);
 
+        // A 32-bit unsigned integer specifying the time to live for this Response, measured in seconds. Before this time interval runs out, the result can be cached. After, it should be discarded.
         unsigned int TTL = (packet_buff[i+6] << 24) | (packet_buff[i+7] << 16) | (packet_buff[i+8] << 8) | packet_buff[i+9];
         printf("TTL = %d\n", TTL);
 
@@ -148,16 +160,27 @@ int main(int argc, char* argv[]) {
         int RDLENGTH= (packet_buff[i+10] << 8) | packet_buff[i+11];
         printf("RDLENGTH = %d\n", RDLENGTH);
 
+
+        if (QTYPE != 28) {
+            log_timestamp(fptr);
+            fprintf(fptr, "unimplemented request\n");
+        }
+
+
         // RDDATA: The IP address IPV6 addresses are 128 bits (network byte order) (high order first)
         // int RDDATA = (packet_buff[i+12])
-        int IPV6_address[RDLENGTH];
+        unsigned char address[RDLENGTH];
         for (int j=0; j<RDLENGTH; j++) {
-            IPV6_address[j] = packet_buff[i+12+j];
+            address[j] = packet_buff[i+12+j];
         }
 
         for (int j=0; j<RDLENGTH; j++) {
-            printf("IPV6_address = %x\n", IPV6_address[j]);
+            printf("address = %x\n", address[j]);
         }
+
+        // response
+        log_response(fptr, labels, num_labels, address, RDLENGTH);
+
     }
 
 
@@ -167,4 +190,62 @@ int main(int argc, char* argv[]) {
 
     
     return 0;
+}
+
+void log_timestamp(FILE *fptr) {
+    time_t timer;
+    char buffer[26];
+    struct tm* tm_info;
+
+    timer = time(NULL);
+    tm_info = localtime(&timer);
+
+    strftime(buffer, 26, "%Y-%m-%dT%H:%M:%S+0000 ", tm_info);
+
+    fprintf(fptr, "%s", buffer);
+}
+
+// USE ntop
+void log_response(FILE *fptr, char **labels, int num_labels, unsigned char *address, int num_elements) {
+    log_timestamp(fptr);
+
+    // Print domain name
+    for (int i=0; i<num_labels; i++) {
+        fprintf(fptr, "%s", labels[i]);
+        if (i != num_labels - 1) {
+            fprintf(fptr, ".");
+        }
+    }
+
+    fprintf(fptr, " is at ");
+
+    char ipv6_address[INET6_ADDRSTRLEN];
+    inet_ntop(AF_INET6, address, ipv6_address, INET6_ADDRSTRLEN);
+
+    // Print ipv6 address
+    fprintf(fptr, "%s\n", ipv6_address);
+}
+
+int num_digits(int num) {
+    int count = 0;
+    while (num != 0) {
+        num /= 10;
+        ++count;
+    }
+
+    return count;
+}
+
+void log_request(FILE *fptr, char **labels, int num_labels) {
+    log_timestamp(fptr);
+    fprintf(fptr, "requested ");
+    for (int i=0; i<num_labels; i++) {
+        if (i == num_labels - 1) {
+            fprintf(fptr, "%s", labels[i]);
+        }
+        else {
+            fprintf(fptr, "%s.", labels[i]);            
+        }
+    }
+    fprintf(fptr, "\n");
 }
