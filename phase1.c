@@ -90,15 +90,9 @@ int main(int argc, char* argv[]) {
     int num_labels;
 
     int i = extract_labels(packet_buff, &labels, &labels_size, &num_labels);
-
-    log_request(fptr, labels, num_labels);
-
-
-    // print request
     if (QR == 0) {
         log_request(fptr, labels, num_labels);
     }
-
 
     // The DNS record type we’re looking up. 
     int QTYPE = (packet_buff[i] << 8) | packet_buff[i+1];
