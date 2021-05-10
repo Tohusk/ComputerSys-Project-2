@@ -7,7 +7,7 @@ CC=gcc
 OBJ=helper1.o
 COPT=-Wall -Wpedantic -g
 BIN_PHASE1=phase1
-BIN_PHASE2=dns_query
+BIN_PHASE2=dns_svr
 
 # Running "make" with no argument will make the first target in the file
 all: $(BIN_PHASE1) $(BIN_PHASE2)

@@ -5,14 +5,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include "helper1.h"
 
 #define HEADER_SIZE 2
 #define ID_SIZE 2
 #define INITIAL_NUM_LABELS 2
-
-void log_request(FILE *fptr, char **labels, int num_labels);
-void log_response(FILE *fptr, char **labels, int num_labels, unsigned char *address, int num_elements);
-void log_timestamp(FILE *fptr);
 
 int main(int argc, char* argv[]) {
     // char *ipv4_address = (char*)malloc(MAXIPV4LENGTH*sizeof(char));
@@ -88,33 +85,14 @@ int main(int argc, char* argv[]) {
     // It is encoded as a series of ‘labels’. 
     // Each label corresponds to a section of the URL. 
     // The URL example.com contains two sections, example, and com.
-    char **labels = malloc(sizeof(char*) * INITIAL_NUM_LABELS);
-    int labels_size = INITIAL_NUM_LABELS;
-    int num_labels = 0;
+    char **labels;
+    int labels_size;
+    int num_labels;
 
-    int i=12;
-    // Qname is terminated by 0 byte
-    while (packet_buff[i] != 0) {
+    int i = extract_labels(packet_buff, &labels, &labels_size, &num_labels);
 
-        int label_size = packet_buff[i];
-        char *label = malloc(label_size*sizeof(char));
-        i++;
-        for (int j=0; j<label_size; j++) {
-            label[j] = packet_buff[i];
-            i++;
-        }
+    log_request(fptr, labels, num_labels);
 
-        // Need to realloc more space
-        if (num_labels == labels_size) {
-            labels = realloc(labels, 2*labels_size*sizeof(char*));
-            labels_size *= 2;
-        }
-        printf("label=%s\n", label);
-        labels[num_labels] = malloc(label_size*sizeof(char));
-        strcpy(labels[num_labels], label);
-        num_labels++;
-    }
-    i++;
 
     // print request
     if (QR == 0) {
@@ -191,62 +169,4 @@ int main(int argc, char* argv[]) {
 
     
     return 0;
-}
-
-void log_timestamp(FILE *fptr) {
-    time_t timer;
-    char buffer[26];
-    struct tm* tm_info;
-
-    timer = time(NULL);
-    tm_info = localtime(&timer);
-
-    strftime(buffer, 26, "%Y-%m-%dT%H:%M:%S+0000 ", tm_info);
-
-    fprintf(fptr, "%s", buffer);
-}
-
-// USE ntop
-void log_response(FILE *fptr, char **labels, int num_labels, unsigned char *address, int num_elements) {
-    log_timestamp(fptr);
-
-    // Print domain name
-    for (int i=0; i<num_labels; i++) {
-        fprintf(fptr, "%s", labels[i]);
-        if (i != num_labels - 1) {
-            fprintf(fptr, ".");
-        }
-    }
-
-    fprintf(fptr, " is at ");
-
-    char ipv6_address[INET6_ADDRSTRLEN];
-    inet_ntop(AF_INET6, address, ipv6_address, INET6_ADDRSTRLEN);
-
-    // Print ipv6 address
-    fprintf(fptr, "%s\n", ipv6_address);
-}
-
-int num_digits(int num) {
-    int count = 0;
-    while (num != 0) {
-        num /= 10;
-        ++count;
-    }
-
-    return count;
-}
-
-void log_request(FILE *fptr, char **labels, int num_labels) {
-    log_timestamp(fptr);
-    fprintf(fptr, "requested ");
-    for (int i=0; i<num_labels; i++) {
-        if (i == num_labels - 1) {
-            fprintf(fptr, "%s", labels[i]);
-        }
-        else {
-            fprintf(fptr, "%s.", labels[i]);            
-        }
-    }
-    fprintf(fptr, "\n");
 }
