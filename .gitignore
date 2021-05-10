@@ -6,5 +6,6 @@ vgcore.*
 helper1
 dns_query
 dns_svr.log
+dns_svr
 *.o
 
