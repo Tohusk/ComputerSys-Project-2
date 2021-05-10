@@ -18,7 +18,6 @@ int main(int argc, char* argv[]) {
 	struct sockaddr_storage client_addr;
 	socklen_t client_addr_size;
 
-    // NOT IMPLEMENTED YET
     // /etc/resolv.conf 53
     if (argc < 3) {
         fprintf(stderr, "usage: %s <server-ip> <server-port>", argv[0]);
@@ -68,11 +67,12 @@ int main(int argc, char* argv[]) {
 		exit(EXIT_FAILURE);
 	}
 
+    printf("Server listening\n");
+
     // Accept a connection - blocks until a connection is ready to be accepted
 	// Get back a new file descriptor to communicate on
 	client_addr_size = sizeof client_addr;
-	newsockfd =
-		accept(sockfd, (struct sockaddr*)&client_addr, &client_addr_size);
+	newsockfd = accept(sockfd, (struct sockaddr*)&client_addr, &client_addr_size);
 	if (newsockfd < 0) {
 		perror("accept");
 		exit(EXIT_FAILURE);
@@ -89,101 +89,101 @@ int main(int argc, char* argv[]) {
     int finished_index = extract_labels(packet_buff, &labels, &labels_size, &num_labels);
     log_request(fptr, labels, num_labels);
 
-    // Check unimplemented request
-    int qtype = (packet_buff[finished_index] << 8) | packet_buff[finished_index+1];
-    if (qtype != 28) {
+    // Wrong query type DO NOT FORWARD ANY QUERIES
+    if (!check_query_type(packet_buff, finished_index)) {
         log_timestamp(fptr);
         fprintf(fptr, "unimplemented request\n");
-    }
 
+        // RESPOND WITH RCODE 4
+        // respond_to_unimplemented(newsockfd)
+    }
+    else {
+        // FORWARD TO UPSTREAM
+
+
+        // int upstreamsockfd, upstream_s;
+        // struct addrinfo upstream_hints, *servinfo, *rp;
+
+        // // Create address
+        // memset(&upstream_hints, 0, sizeof upstream_hints);
+        // upstream_hints.ai_family = AF_INET;
+        // upstream_hints.ai_socktype = SOCK_STREAM;
+
+        // // Connect to upstream
+        // upstream_s = getaddrinfo(argv[1], argv[2], &upstream_hints, &servinfo);
+        // if (upstream_s != 0) {
+        //     fprintf(stderr, "getaddrinfo %s\n", gai_strerror(upstream_s));
+        //     exit(EXIT_FAILURE);
+        // }
+
+        // // Connect to first valid result
+        // // Why are there multiple results? see man page (search 'several reasons')
+        // // How to search? enter /, then text to search for, press n/N to navigate
+        // for (rp = servinfo; rp != NULL; rp = rp->ai_next) {
+        // 	upstreamsockfd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+        // 	if (upstreamsockfd == -1)
+        // 		continue;
+
+        // 	if (connect(upstreamsockfd, rp->ai_addr, rp->ai_addrlen) != -1)
+        // 		break; // success
+
+        // 	close(upstreamsockfd);
+        // }
+        // if (rp == NULL) {
+        // 	fprintf(stderr, "Failed to connect to upstream\n");
+        // 	exit(EXIT_FAILURE);
+        // }
+
+        // printf("Connected to upstream\n");
+
+        // int bytes_sent = 0;
+        // // Need to handle socket errors
+        // while (bytes_sent != rem_len) {
+        //     bytes_sent += write(upstreamsockfd, buffer+bytes_sent, (rem_len - bytes_sent) * sizeof(unsigned char));
+        // }
+
+        // printf("Sent request to upstream\n");
+
+        // // Read response from upstream
+        // // Read header
+        // // 2 bytes = 2 * char
+        // unsigned char responsebuffer[HEADER_SIZE];
+        // bytes_read = 0;
+        // // Need to handle socket errors
+        // while (bytes_read != HEADER_SIZE) {
+        //     // Read one byte at a time for header
+        //     bytes_read += read(upstreamsockfd, responsebuffer+bytes_read, sizeof(unsigned char));
+        // }
+        // // First two bytes are remaining length
+        // rem_len = (responsebuffer[0] << 8) | responsebuffer[1];
+
+        // unsigned char response_packet_buff[rem_len];
+        // // Reset bytes read
+        // bytes_read = 0;
+        // while (bytes_read != rem_len) {
+        //     bytes_read += read(upstreamsockfd, response_packet_buff+bytes_read, (rem_len - bytes_read)*sizeof(unsigned char));
+        // }
+
+        // printf("Response read from upstream\n");
+
+
+
+        // close(upstreamsockfd);
+        // freeaddrinfo(servinfo);
+
+        // // Send response to client
+        // bytes_sent = 0;
+        // // Need to handle socket errors
+        // while (bytes_sent != rem_len) {
+        //     bytes_sent += write(newsockfd, response_packet_buff+bytes_sent, (rem_len - bytes_sent) * sizeof(unsigned char));
+        // }
+
+        // printf("Responded to client\n");
+
+    }
     
 
-
-
-    // // FORWARD TO UPSTREAM
-    // // If not AAAA record in request, don't forward to upstream
-    // // Remember to log things
-
-
-    // int upstreamsockfd, upstream_s;
-    // struct addrinfo upstream_hints, *servinfo, *rp;
-
-    // // Create address
-    // memset(&upstream_hints, 0, sizeof upstream_hints);
-	// upstream_hints.ai_family = AF_INET;
-	// upstream_hints.ai_socktype = SOCK_STREAM;
-
-    // // Connect to upstream
-    // upstream_s = getaddrinfo(argv[1], argv[2], &upstream_hints, &servinfo);
-    // if (upstream_s != 0) {
-    //     fprintf(stderr, "getaddrinfo %s\n", gai_strerror(upstream_s));
-    //     exit(EXIT_FAILURE);
-    // }
-
-    // // Connect to first valid result
-	// // Why are there multiple results? see man page (search 'several reasons')
-	// // How to search? enter /, then text to search for, press n/N to navigate
-	// for (rp = servinfo; rp != NULL; rp = rp->ai_next) {
-	// 	upstreamsockfd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
-	// 	if (upstreamsockfd == -1)
-	// 		continue;
-
-	// 	if (connect(upstreamsockfd, rp->ai_addr, rp->ai_addrlen) != -1)
-	// 		break; // success
-
-	// 	close(upstreamsockfd);
-	// }
-	// if (rp == NULL) {
-	// 	fprintf(stderr, "Failed to connect to upstream\n");
-	// 	exit(EXIT_FAILURE);
-	// }
-
-    // printf("Connected to upstream\n");
-
-    // int bytes_sent = 0;
-    // // Need to handle socket errors
-    // while (bytes_sent != rem_len) {
-    //     bytes_sent += write(upstreamsockfd, buffer+bytes_sent, (rem_len - bytes_sent) * sizeof(unsigned char));
-    // }
-
-    // printf("Sent request to upstream\n");
-
-    // // Read response from upstream
-    // // Read header
-    // // 2 bytes = 2 * char
-	// unsigned char responsebuffer[HEADER_SIZE];
-    // bytes_read = 0;
-    // // Need to handle socket errors
-    // while (bytes_read != HEADER_SIZE) {
-    //     // Read one byte at a time for header
-    //     bytes_read += read(upstreamsockfd, responsebuffer+bytes_read, sizeof(unsigned char));
-    // }
-    // // First two bytes are remaining length
-    // rem_len = (responsebuffer[0] << 8) | responsebuffer[1];
-
-    // unsigned char response_packet_buff[rem_len];
-    // // Reset bytes read
-    // bytes_read = 0;
-    // while (bytes_read != rem_len) {
-    //     bytes_read += read(upstreamsockfd, response_packet_buff+bytes_read, (rem_len - bytes_read)*sizeof(unsigned char));
-    // }
-
-    // printf("Response read from upstream\n");
-
-
-
-    // close(upstreamsockfd);
-    // freeaddrinfo(servinfo);
-
-    // // Send response to client
-    // bytes_sent = 0;
-    // // Need to handle socket errors
-    // while (bytes_sent != rem_len) {
-    //     bytes_sent += write(newsockfd, response_packet_buff+bytes_sent, (rem_len - bytes_sent) * sizeof(unsigned char));
-    // }
-
-    // printf("Responded to client\n");
-
+    // Close client to server socket
 	freeaddrinfo(res);
 	close(newsockfd);
 	close(sockfd);

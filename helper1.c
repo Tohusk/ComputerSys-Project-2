@@ -95,7 +95,7 @@ int extract_labels(unsigned char *packet_buff, char ***labels, int *labels_size,
     return i;
 }
 
-void read_packet(unsigned char **packet_buffer, int sockfd) {
+void read_packet(unsigned char **packet_buff, int sockfd) {
     // Read header
     // 2 bytes = 2 * char
 	unsigned char buffer[HEADER_SIZE];
@@ -109,10 +109,21 @@ void read_packet(unsigned char **packet_buffer, int sockfd) {
     // First two bytes are remaining length
     int rem_len = (buffer[0] << 8) | buffer[1];
 
-    (*packet_buffer) = malloc(sizeof(unsigned char) * rem_len);
+    (*packet_buff) = malloc(sizeof(unsigned char) * rem_len);
     // Reset bytes read
     bytes_read = 0;
     while (bytes_read != rem_len) {
-        bytes_read += read(sockfd, (*packet_buffer)+bytes_read, (rem_len - bytes_read)*sizeof(unsigned char));
+        bytes_read += read(sockfd, (*packet_buff)+bytes_read, (rem_len - bytes_read)*sizeof(unsigned char));
+    }
+}
+
+int check_query_type(unsigned char *packet_buff, int label_finish_index) {
+    int qtype = (packet_buff[label_finish_index] << 8) | packet_buff[label_finish_index+1];
+    // Check if request for AAAA
+    if (qtype == 28) {
+        return 1;
+    }
+    else {
+        return 0;
     }
 }

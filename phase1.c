@@ -107,13 +107,20 @@ int main(int argc, char* argv[]) {
     // Print the log.
     // Attempt to modularise your code and make it reusable (if you didn’t do so during implementation).
 
+    // Wrong query type DO NOT FORWARD ANY QUERIES
+    if (!check_query_type(packet_buff, i)) {
+        // RESPOND WITH RCODE 4
+        log_timestamp(fptr);
+        fprintf(fptr, "unimplemented request\n");
+    }
+
     // Reset index
     i=i+4;
 
     // ANSWER
     // IF NO ANSWER OR NOT IPV6 DON'T LOG ANYHTING
     printf("first two bits=%d\n", packet_buff[i] >> 6);
-    if (QR == 1 && packet_buff[i] >> 6 == 3) {
+    if (QR == 1 && packet_buff[i] >> 6 == 3 && QTYPE == 28) {
         // NAME This is the URL who’s IP address this response contains. offset doesn't include the two leading bytes for length of entire message
         unsigned int NAME = ((packet_buff[i] & 63) << 8) | packet_buff[i+1];
         printf("NAME = %d\n", NAME);
@@ -133,11 +140,6 @@ int main(int argc, char* argv[]) {
         int RDLENGTH= (packet_buff[i+10] << 8) | packet_buff[i+11];
         printf("RDLENGTH = %d\n", RDLENGTH);
 
-
-        if (QTYPE != 28) {
-            log_timestamp(fptr);
-            fprintf(fptr, "unimplemented request\n");
-        }
 
 
         // RDDATA: The IP address IPV6 addresses are 128 bits (network byte order) (high order first)
