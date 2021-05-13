@@ -30,7 +30,7 @@ void log_request(FILE *fptr, char **labels, int num_labels) {
     fprintf(fptr, "\n");
 }
 
-// USE ntop
+// Only log first response
 void log_response(FILE *fptr, char **labels, int num_labels, unsigned char *address, int num_elements) {
     log_timestamp(fptr);
 
@@ -66,22 +66,19 @@ void log_timestamp(FILE *fptr) {
 }
 
 void extract_address(unsigned char *response, int response_size, int finished_index, unsigned char **address, int *num_elements) {
-    int current_index = finished_index += 4;
-    if (response[current_index] >> 6 == 3) {
-        (*num_elements) = (response[current_index+10] << 8) | response[current_index+11];
-
-
-        // RDDATA: The IP address IPV6 addresses are 128 bits (network byte order) (high order first)
-        // int RDDATA = (packet_buff[i+12])
-        // unsigned char address[(*num_elements)];
-        (*address) = malloc((*num_elements) * sizeof(unsigned char));
-        for (int j=0; j<(*num_elements); j++) {
-            (*address)[j] = response[current_index+12+j];
-        }
+    printf("Extracting address\n");
+    // Start of RDLENGTH
+    int i = finished_index + 14;
+    (*num_elements) = (response[i] << 8) | response[i+1];
+    (*address) = malloc((*num_elements) * sizeof(unsigned char));
+    for (int j=0; j<(*num_elements); j++) {
+        (*address)[j] = response[i+2+j];
     }
+    
 }
 
 int extract_labels(unsigned char *packet, char ***labels, int *labels_size, int *num_labels) {
+    // NOT FREED
     *labels = malloc(sizeof(char*) * INITIAL_NUM_LABELS);
     *labels_size = INITIAL_NUM_LABELS;
     *num_labels = 0;
@@ -90,7 +87,7 @@ int extract_labels(unsigned char *packet, char ***labels, int *labels_size, int 
     while (packet[i] != 0) {
 
         int label_size = packet[i];
-        char *label = malloc(label_size*sizeof(char));
+        char *label = malloc((label_size+1)*sizeof(char));
         i++;
         for (int j=0; j<label_size; j++) {
             label[j] = packet[i];
@@ -99,11 +96,16 @@ int extract_labels(unsigned char *packet, char ***labels, int *labels_size, int 
 
         // Need to realloc more space
         if (*num_labels == *labels_size) {
-            *labels = realloc(*labels, 2*(*labels_size)*sizeof(char*));
+            char **tmp = realloc(*labels, 2*(*labels_size)*sizeof(char*));
+            if (tmp != NULL) {
+                *labels = tmp;
+            }
             (*labels_size) *= 2;
         }
-        (*labels)[*num_labels] = malloc(label_size*sizeof(char));
+        // NOT FREED
+        (*labels)[*num_labels] = malloc((label_size+1)*sizeof(char));
         strcpy((*labels)[*num_labels], label);
+        free(label);
         (*num_labels)++;
     }
     i++;
@@ -111,7 +113,7 @@ int extract_labels(unsigned char *packet, char ***labels, int *labels_size, int 
     return i;
 }
 
-int read_packet(unsigned char **packet, int sockfd) {
+int read_from_socket(unsigned char **packet, int sockfd) {
     unsigned char buffer[20];
     unsigned char packet_length_bytes[2];
     int bytes_read = 0;
@@ -130,7 +132,6 @@ int read_packet(unsigned char **packet, int sockfd) {
             break;
         }
 
-        printf("n is %d\n", n);
         // Move onto storage
         for (int i=0; i<n; i++) {
             packet_length_bytes[bytes_read + i] = buffer[i];
@@ -145,9 +146,8 @@ int read_packet(unsigned char **packet, int sockfd) {
     // First two bytes are remaining length
     int rem_len = (packet_length_bytes[0] << 8) | packet_length_bytes[1];
 
-    printf("rem_len = %d\n", rem_len);
-
     // Read rest of packet
+    // NOT FREED
     (*packet) = malloc(rem_len * sizeof(unsigned char));
     bytes_read = 0;
     while (1) {
@@ -163,7 +163,6 @@ int read_packet(unsigned char **packet, int sockfd) {
             break;
         }
 
-        printf("n is %d\n", n);
         // Move onto storage
         for (int i=0; i<n; i++) {
             (*packet)[bytes_read + i] = buffer[i];
@@ -178,8 +177,11 @@ int read_packet(unsigned char **packet, int sockfd) {
     return rem_len;
 }
 
-int check_query_type(unsigned char *packet_buff, int label_finish_index) {
-    int qtype = (packet_buff[label_finish_index] << 8) | packet_buff[label_finish_index+1];
+int check_query_type(unsigned char *packet, int label_finish_index) {
+    printf("Checking query type\n");
+    int qtype = (packet[label_finish_index] << 8) | packet[label_finish_index+1];
+
+    printf("Qtype = %d\n", qtype);
     // Check if request for AAAA
     if (qtype == 28) {
         return 1;
@@ -189,8 +191,26 @@ int check_query_type(unsigned char *packet_buff, int label_finish_index) {
     }
 }
 
+// Only look at first answer
+int valid_response(unsigned char *response, int response_size, int finished_index) {
+    printf("Testing valid response\n");
+    // Skip of NAME section
+    int i = finished_index + 6;
+    int type = (response[i] << 8) | response[i+1];
+    // These use the same naming schema as QTYPE and QCLASS above, and have the same values as above.
+    printf("TYPE = %d\n", type);   
+
+    // valid ipv6 address
+    if (type == 28) {
+        return 1;
+    }
+    else {
+        return 0;
+    }
+}
+
 // TODO make sure this shit is right
-void write_response(int upstreamsockfd, unsigned char *response, int response_size) {
+void write_to_socket(int upstreamsockfd, unsigned char *response, int response_size) {
 
 
     
@@ -204,7 +224,6 @@ void write_response(int upstreamsockfd, unsigned char *response, int response_si
         perror("socket");
         exit(EXIT_FAILURE);
     }
-    printf("after writing header: n is %d\n", n);
 
 
     n = write(upstreamsockfd, response, response_size);
@@ -212,7 +231,6 @@ void write_response(int upstreamsockfd, unsigned char *response, int response_si
         perror("socket");
         exit(EXIT_FAILURE);
     }
-    printf("n is %d\n", n);
 
 }
 

@@ -5,9 +5,6 @@ phase1.exe
 vgcore.*
 helper1
 dns_query
-dns_svr.*
 dns_svr
+dns_svr.log
 *.o
-
-dns_svr
-dns_svr
