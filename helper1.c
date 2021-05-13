@@ -158,6 +158,7 @@ int read_packet(unsigned char **packet, int sockfd) {
             break;
         }
     }
+
     return rem_len;
 }
 
@@ -174,57 +175,27 @@ int check_query_type(unsigned char *packet_buff, int label_finish_index) {
 
 // TODO make sure this shit is right
 void write_response(int upstreamsockfd, unsigned char *response, int response_size) {
-    // unsigned char header_buff[HEADER_SIZE];
-    // // Need to write first two bytes for TCP
-    // int total_packet_size = response_size + HEADER_SIZE;
-    // header_buff[0] = total_packet_size >> 8;
-    // header_buff[1] = total_packet_size & 255;
 
-    // int bytes_sent = write(upstreamsockfd, header_buff, sizeof(unsigned char));
-    // printf("Bytes sent : %d\n", bytes_sent);
+
     
+    unsigned char header_buff[HEADER_SIZE];
+    header_buff[0] = response_size >> 8;
+    header_buff[1] = response_size & 255;
 
-    // // int check_size = (header_buff[0] << 8) | header_buff[1];
-    // // printf("check_size = %d\n", check_size);    
-    // unsigned char buffer[HEADER_SIZE];
-    // for (int i=0; i<HEADER_SIZE; i++) {
-    //     buffer[i] = header_buff[i];
-    // }
-    // bytes_sent = 0;
-    // while (bytes_sent < HEADER_SIZE) {
-    //     int n = write(upstreamsockfd, buffer, (HEADER_SIZE - bytes_sent) * sizeof(unsigned char));
-    //     bytes_sent += n;
-    //     for (int i=0; i<n; i++) {
-    //         buffer[i] = header_buff[bytes_sent+i];
-    //     }
-    //     printf("Bytes sent : %d\n", bytes_sent);
-    // }
+    int n;
+    n = write(upstreamsockfd, header_buff, HEADER_SIZE);
+    if (n < 0) {
+        perror("socket");
+        exit(EXIT_FAILURE);
+    }
+    printf("after writing header: n is %d\n", n);
 
-    // bytes_sent = write(upstreamsockfd, response, response_size * sizeof(unsigned char));
 
-    // unsigned char packet_buff[20];
+    n = write(upstreamsockfd, response, response_size);
+    if (n < 0) {
+        perror("socket");
+        exit(EXIT_FAILURE);
+    }
+    printf("n is %d\n", n);
 
-    // bytes_sent = 0;
-    // // Need to handle socket errors
-    // while (bytes_sent < response_size) {
-    //     // Rewrite entire buffer with new data
-    //     if (response_size - bytes_sent < 20) {
-    //         for (int i=0; i<(response_size - bytes_sent); i++) {
-    //             packet_buff[i] = response[bytes_sent+i];
-    //         }
-    //         int n = write(upstreamsockfd, packet_buff, (response_size - bytes_sent) * sizeof(unsigned char));
-    //         printf("Bytes sent this turn : %d\n", n);
-    //         bytes_sent += n;
-    //     }
-    //     else {
-    //         for (int i=0; i<20; i++) {
-    //             packet_buff[i] = response[bytes_sent+i];
-    //         }
-    //         // Write max 20 bytes
-    //         int n = write(upstreamsockfd, packet_buff, 20 * sizeof(unsigned char));
-    //         printf("Bytes sent this turn : %d\n", n);
-    //         bytes_sent += n;
-    //     }
-    //     // Upper bound is response size - bytes sent
-    // }
 }
