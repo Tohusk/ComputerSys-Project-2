@@ -32,4 +32,4 @@ format:
 	clang-format -i *.c *.h
 
 clean:
-	# implement this, to remove $(BIN_PHASE[12]) and any .o files
+	rm -f *.o dns_svr phase1
