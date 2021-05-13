@@ -65,19 +65,35 @@ void log_timestamp(FILE *fptr) {
     fprintf(fptr, "%s", buffer);
 }
 
-int extract_labels(unsigned char *packet_buff, char ***labels, int *labels_size, int *num_labels) {
+void extract_address(unsigned char *response, int response_size, int finished_index, unsigned char **address, int *num_elements) {
+    int current_index = finished_index += 4;
+    if (response[current_index] >> 6 == 3) {
+        (*num_elements) = (response[current_index+10] << 8) | response[current_index+11];
+
+
+        // RDDATA: The IP address IPV6 addresses are 128 bits (network byte order) (high order first)
+        // int RDDATA = (packet_buff[i+12])
+        // unsigned char address[(*num_elements)];
+        (*address) = malloc((*num_elements) * sizeof(unsigned char));
+        for (int j=0; j<(*num_elements); j++) {
+            (*address)[j] = response[current_index+12+j];
+        }
+    }
+}
+
+int extract_labels(unsigned char *packet, char ***labels, int *labels_size, int *num_labels) {
     *labels = malloc(sizeof(char*) * INITIAL_NUM_LABELS);
     *labels_size = INITIAL_NUM_LABELS;
     *num_labels = 0;
     
     int i=12;
-    while (packet_buff[i] != 0) {
+    while (packet[i] != 0) {
 
-        int label_size = packet_buff[i];
+        int label_size = packet[i];
         char *label = malloc(label_size*sizeof(char));
         i++;
         for (int j=0; j<label_size; j++) {
-            label[j] = packet_buff[i];
+            label[j] = packet[i];
             i++;
         }
 
@@ -198,4 +214,48 @@ void write_response(int upstreamsockfd, unsigned char *response, int response_si
     }
     printf("n is %d\n", n);
 
+}
+
+void respond_to_unimplemented(unsigned char *packet, int sockfd) {
+    // Write header to send back to client
+    unsigned char length[2];
+    length[0] = 0;
+    length[1] = 12;
+    int n;
+    n = write(sockfd, length, 2);
+    unsigned char error_packet[12];
+
+    // ID
+    error_packet[0] = packet[0];
+    error_packet[1] = packet[1];
+
+    // QR
+    // OPCODE
+    // AA
+    // TC
+    // RD
+    error_packet[2] = 0;
+    // RA
+    // Z
+    // RCODE
+    error_packet[3] = 4;
+    // QDCOUNT
+    error_packet[4] = 0;
+    error_packet[5] = 0;
+    // ANCOUNT
+    error_packet[6] = 0;
+    error_packet[7] = 0;
+    // NSCOUT
+    error_packet[8] = 0;
+    error_packet[9] = 0;
+    // ARCOUNT
+    error_packet[10] = 0;
+    error_packet[11] = 0;
+
+    n = write(sockfd, error_packet, 12);
+    if (n < 0) {
+        perror("socket");
+        exit(EXIT_FAILURE);
+    }
+    printf("After sending empty packet with Rcode 4: n is %d\n", n);
 }

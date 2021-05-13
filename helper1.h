@@ -11,5 +11,7 @@ int extract_labels(unsigned char *packet_buff, char ***labels, int *labels_size,
 int read_packet(unsigned char **packet, int sockfd);
 int check_query_type(unsigned char *packet_buff, int label_finish_index);
 void write_response(int upstreamsockfd, unsigned char *response, int response_size);
+void extract_address(unsigned char *response, int response_size, int finished_index, unsigned char **address, int *num_elements);
+void respond_to_unimplemented(unsigned char *packet, int sockfd);
 
 #endif
