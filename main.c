@@ -18,12 +18,10 @@ int main(int argc, char* argv[]) {
 	struct sockaddr_storage client_addr;
 	socklen_t client_addr_size;
 
-    // /etc/resolv.conf 53
     if (argc < 3) {
         fprintf(stderr, "usage: %s <server-ip> <server-port>", argv[0]);
         exit(EXIT_FAILURE);
     }
-
 
     // Create address we're going to listen on (with given port number)
     memset(&hints, 0, sizeof hints);
@@ -109,6 +107,14 @@ int main(int argc, char* argv[]) {
             respond_to_unimplemented(query_packet, newsockfd);
         }
         else {
+            // Check cache
+            // Process TTL
+            // ID fields
+            // eviction behaviour 
+            // Log
+
+
+
             // FORWARD TO UPSTREAM
             int up_sockfd, up_s;
             struct addrinfo up_hints, *servinfo, *rp;

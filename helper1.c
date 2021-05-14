@@ -118,34 +118,48 @@ int extract_labels(unsigned char *packet, char ***labels, int *labels_size, int 
 }
 
 int read_from_socket(unsigned char **packet, int sockfd) {
-    unsigned char buffer[20];
+    // unsigned char buffer[20];
     unsigned char packet_length_bytes[2];
     int bytes_read = 0;
-    
-    // Read length
-    while (1) {
-        int n;
-        n = read(sockfd, buffer, 2);
-        if (n < 0) {
-			perror("ERROR reading from socket");
-			exit(EXIT_FAILURE);
-		}
+    int n;
 
+    while (bytes_read < HEADER_SIZE) {
+        n = read(sockfd, packet_length_bytes + bytes_read, HEADER_SIZE - bytes_read);
+        if (n < 0) {
+        	perror("ERROR reading from socket");
+			exit(EXIT_FAILURE);
+        }
         if (n == 0) {
             printf("disconnect\n");
             break;
         }
-
-        // Move onto storage
-        for (int i=0; i<n; i++) {
-            packet_length_bytes[bytes_read + i] = buffer[i];
-        }
         bytes_read += n;
-
-        if (bytes_read == 2) {
-            break;
-        }
     }
+    
+    // // Read length
+    // while (1) {
+    //     int n;
+    //     n = read(sockfd, buffer, 2);
+    //     if (n < 0) {
+	// 		perror("ERROR reading from socket");
+	// 		exit(EXIT_FAILURE);
+	// 	}
+
+    //     if (n == 0) {
+    //         printf("disconnect\n");
+    //         break;
+    //     }
+
+    //     // Move onto storage
+    //     for (int i=0; i<n; i++) {
+    //         packet_length_bytes[bytes_read + i] = buffer[i];
+    //     }
+    //     bytes_read += n;
+
+    //     if (bytes_read == 2) {
+    //         break;
+    //     }
+    // }
 
     // First two bytes are remaining length
     int rem_len = (packet_length_bytes[0] << 8) | packet_length_bytes[1];
@@ -154,29 +168,42 @@ int read_from_socket(unsigned char **packet, int sockfd) {
     // NOT FREED
     (*packet) = malloc(rem_len * sizeof(unsigned char));
     bytes_read = 0;
-    while (1) {
-        int n;
-        n = read(sockfd, buffer, 20);
-        if (n < 0) {
-			perror("ERROR reading from socket");
-			exit(EXIT_FAILURE);
-		}
 
+    while (bytes_read < rem_len) {
+        n = read(sockfd, (*packet) + bytes_read, rem_len - bytes_read);
+        if (n < 0) {
+        	perror("ERROR reading from socket");
+			exit(EXIT_FAILURE);
+        }
         if (n == 0) {
             printf("disconnect\n");
             break;
         }
-
-        // Move onto storage
-        for (int i=0; i<n; i++) {
-            (*packet)[bytes_read + i] = buffer[i];
-        }
         bytes_read += n;
-
-        if (bytes_read == rem_len) {
-            break;
-        }
     }
+    // while (1) {
+    //     int n;
+    //     n = read(sockfd, buffer, 20);
+    //     if (n < 0) {
+	// 		perror("ERROR reading from socket");
+	// 		exit(EXIT_FAILURE);
+	// 	}
+
+    //     if (n == 0) {
+    //         printf("disconnect\n");
+    //         break;
+    //     }
+
+    //     // Move onto storage
+    //     for (int i=0; i<n; i++) {
+    //         (*packet)[bytes_read + i] = buffer[i];
+    //     }
+    //     bytes_read += n;
+
+    //     if (bytes_read == rem_len) {
+    //         break;
+    //     }
+    // }
 
     return rem_len;
 }
