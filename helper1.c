@@ -65,8 +65,8 @@ void log_timestamp(FILE *fptr) {
     fprintf(fptr, "%s", buffer);
 }
 
+
 void extract_address(unsigned char *response, int response_size, int finished_index, unsigned char **address, int *num_elements) {
-    printf("Extracting address\n");
     // Start of RDLENGTH
     int i = finished_index + 14;
     (*num_elements) = (response[i] << 8) | response[i+1];
@@ -77,7 +77,9 @@ void extract_address(unsigned char *response, int response_size, int finished_in
     
 }
 
+// Problem child fix memory shit
 int extract_labels(unsigned char *packet, char ***labels, int *labels_size, int *num_labels) {
+    // Array for labels
     // NOT FREED
     *labels = malloc(sizeof(char*) * INITIAL_NUM_LABELS);
     *labels_size = INITIAL_NUM_LABELS;
@@ -87,12 +89,15 @@ int extract_labels(unsigned char *packet, char ***labels, int *labels_size, int 
     while (packet[i] != 0) {
 
         int label_size = packet[i];
-        char *label = malloc((label_size+1)*sizeof(char));
+        // Current label (Array of characters) + 1 for the null byte
+        char label[label_size+1];
         i++;
         for (int j=0; j<label_size; j++) {
             label[j] = packet[i];
             i++;
         }
+        label[label_size] = '\0';
+
 
         // Need to realloc more space
         if (*num_labels == *labels_size) {
@@ -105,7 +110,6 @@ int extract_labels(unsigned char *packet, char ***labels, int *labels_size, int 
         // NOT FREED
         (*labels)[*num_labels] = malloc((label_size+1)*sizeof(char));
         strcpy((*labels)[*num_labels], label);
-        free(label);
         (*num_labels)++;
     }
     i++;
@@ -178,10 +182,8 @@ int read_from_socket(unsigned char **packet, int sockfd) {
 }
 
 int check_query_type(unsigned char *packet, int label_finish_index) {
-    printf("Checking query type\n");
     int qtype = (packet[label_finish_index] << 8) | packet[label_finish_index+1];
 
-    printf("Qtype = %d\n", qtype);
     // Check if request for AAAA
     if (qtype == 28) {
         return 1;
@@ -193,12 +195,10 @@ int check_query_type(unsigned char *packet, int label_finish_index) {
 
 // Only look at first answer
 int valid_response(unsigned char *response, int response_size, int finished_index) {
-    printf("Testing valid response\n");
     // Skip of NAME section
     int i = finished_index + 6;
     int type = (response[i] << 8) | response[i+1];
     // These use the same naming schema as QTYPE and QCLASS above, and have the same values as above.
-    printf("TYPE = %d\n", type);   
 
     // valid ipv6 address
     if (type == 28) {
@@ -211,9 +211,6 @@ int valid_response(unsigned char *response, int response_size, int finished_inde
 
 // TODO make sure this shit is right
 void write_to_socket(int upstreamsockfd, unsigned char *response, int response_size) {
-
-
-    
     unsigned char header_buff[HEADER_SIZE];
     header_buff[0] = response_size >> 8;
     header_buff[1] = response_size & 255;
@@ -252,11 +249,11 @@ void respond_to_unimplemented(unsigned char *packet, int sockfd) {
     // AA
     // TC
     // RD
-    error_packet[2] = 0;
+    error_packet[2] = 128;
     // RA
     // Z
     // RCODE
-    error_packet[3] = 4;
+    error_packet[3] = 132;
     // QDCOUNT
     error_packet[4] = 0;
     error_packet[5] = 0;
@@ -275,5 +272,4 @@ void respond_to_unimplemented(unsigned char *packet, int sockfd) {
         perror("socket");
         exit(EXIT_FAILURE);
     }
-    printf("After sending empty packet with Rcode 4: n is %d\n", n);
 }
