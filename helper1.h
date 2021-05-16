@@ -14,5 +14,8 @@ void write_to_socket(int upstreamsockfd, unsigned char *response, int response_s
 void extract_address(unsigned char *response, int response_size, int finished_index, unsigned char **address, int *num_elements);
 void respond_to_unimplemented(unsigned char *packet, int sockfd);
 int valid_response(unsigned char *response, int response_size, int finished_index);
+void add_to_cache(unsigned char *response, int response_size, unsigned char **cache, int *cache_size);
+void rotate_left(unsigned char **cache, int cache_size);
+void free_cache(unsigned char **cache, int cache_size);
 
 #endif

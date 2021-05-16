@@ -9,10 +9,24 @@
 #include <netdb.h>
 #include "helper1.h"
 
-
+#define CACHED_RESULTS 5
 
 
 int main(int argc, char* argv[]) {
+
+    
+    // Store cache as response packets in array of (array of unsigned char)
+    // ID needs to be modified when reading from cache
+    unsigned char *cache[CACHED_RESULTS];
+    int cache_size = 0;
+    
+    // Check if response is in cache
+
+    // Read response from cache
+
+    // Else send to upstream
+
+
 	int sockfd, newsockfd, re, s;
 	struct addrinfo hints, *res;
 	struct sockaddr_storage client_addr;
@@ -103,6 +117,7 @@ int main(int argc, char* argv[]) {
         if (!check_query_type(query_packet, finished_index)) {
             log_timestamp(fptr);
             fprintf(fptr, "unimplemented request\n");
+            fflush(fptr);
             // RESPOND WITH RCODE 4
             respond_to_unimplemented(query_packet, newsockfd);
         }
@@ -162,6 +177,18 @@ int main(int argc, char* argv[]) {
 
             printf("Response read from upstream\n");
 
+            // Cache response
+            // Ahh fuck need to store size
+            add_to_cache(response, response_size, cache, &cache_size);
+            for (int i=0; i<cache_size; i++) {
+                printf("cache element %d: ", i);
+                int rem_len = (cache[i][0] << 8) | cache[i][1];
+                for (int j=2; j<rem_len+2; j++) {
+                    printf("%x ", cache[i][j]);
+                }
+                printf("\n");
+            }
+
             // If there is no answer in the reply, log the request line only.
             if (valid_response(response, response_size, finished_index)) {
                 unsigned char *address;
@@ -191,6 +218,9 @@ int main(int argc, char* argv[]) {
     freeaddrinfo(res);
     close(newsockfd);
     close(sockfd);
+
+    // free cache
+    free_cache(cache, cache_size);
         
     return 0;
 }
