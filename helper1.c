@@ -269,7 +269,7 @@ void respond_to_unimplemented(unsigned char *packet, int sockfd) {
     }
 }
 
-void add_to_cache(unsigned char *response, int response_size, unsigned char **cache, int *cache_size) {
+void add_to_cache(FILE *fptr, unsigned char *response, int response_size, unsigned char **cache, int *cache_size) {
     printf("Adding to cache\n");
     // Always store most recent result at cache_size-1
     // if cache is full, move everything up one
@@ -288,6 +288,7 @@ void add_to_cache(unsigned char *response, int response_size, unsigned char **ca
         int first_expired_index;
         if ((first_expired_index = find_expired_entry(cache, (*cache_size))) != -1) {
             memcpy(cache[first_expired_index], to_be_cached_response, (response_size+TCP_HEADER_SIZE) * sizeof(unsigned char));
+            log_cache_replacement(fptr, cache[first_expired_index], to_be_cached_response);
         } 
         else {
             memcpy(cache[*cache_size-1], to_be_cached_response, (response_size+TCP_HEADER_SIZE) * sizeof(unsigned char));
@@ -472,4 +473,63 @@ void log_cache_response_expiry(FILE *fptr, unsigned char *response, char **label
 
     fprintf(fptr, "\n");
     fflush(fptr);
+}
+
+// both packets includes TCP header
+void log_cache_replacement(FILE *fptr, unsigned char *expired_packet, unsigned char *to_be_cached_packet) {
+    
+    char **expired_labels;
+    int expired_labels_size;
+    int expired_num_labels;
+
+    extract_labels(expired_packet+2, expired_labels, expired_labels_size, expired_num_labels);
+
+    char **new_labels;
+    int new_labels_size;
+    int new_num_labels;
+
+    extract_labels(to_be_cached_packet+2, new_labels, new_labels_size, new_num_labels);
+
+    log_timestamp(fptr);
+
+    fprintf(fptr, "replacing ");
+    fflush(fptr);
+
+    // Print domain name
+    for (int i=0; i<expired_num_labels; i++) {
+        fprintf(fptr, "%s", expired_labels[i]);
+        fflush(fptr);
+        if (i != expired_num_labels - 1) {
+            fprintf(fptr, ".");
+            fflush(fptr);
+        }
+    }
+
+    fprintf(fptr, " by ");
+    fflush(fptr);
+
+    for (int i=0; i<new_num_labels; i++) {
+        fprintf(fptr, "%s", new_labels[i]);
+        fflush(fptr);
+        if (i != new_num_labels - 1) {
+            fprintf(fptr, ".");
+            fflush(fptr);
+        }
+    }
+
+    fprintf(fptr, "\n");
+    fflush(fptr);
+
+
+    for (int i=0; i<expired_num_labels; i++) {
+        free(expired_labels[i]);
+    }
+    free(expired_labels);
+
+    for (int i=0; i<new_num_labels; i++) {
+        free(new_labels[i]);
+    }
+    free(new_labels);
+
+
 }

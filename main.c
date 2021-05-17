@@ -219,7 +219,7 @@ int main(int argc, char* argv[]) {
                 if (valid_response(response, response_size, finished_index)) {
                     // Cache response
                     // Should evict expired ones first
-                    add_to_cache(response, response_size, cache, &cache_size);
+                    add_to_cache(fptr, response, response_size, cache, &cache_size);
 
                     unsigned char *address;
                     int num_elements;
