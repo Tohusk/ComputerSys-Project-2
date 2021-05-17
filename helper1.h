@@ -24,5 +24,6 @@ void amend_response(unsigned char *cached_response, int response_index, unsigned
 int check_ttl(unsigned char *response);
 int find_expired_entry(unsigned char **cache, int cache_size);
 void log_cache_response_expiry(FILE *fptr, unsigned char *response, char **labels, int num_labels);
+void log_cache_replacement(FILE *fptr, unsigned char *expired_packet, unsigned char *to_be_cached_packet);
 
 #endif

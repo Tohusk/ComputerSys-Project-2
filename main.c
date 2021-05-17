@@ -163,6 +163,7 @@ int main(int argc, char* argv[]) {
                 free(address);
 
                 write_to_socket(newsockfd, response, response_size);
+                free(query_packet);
             }
 
 
@@ -232,6 +233,7 @@ int main(int argc, char* argv[]) {
                 freeaddrinfo(servinfo);
                 // Send full response to client
                 write_to_socket(newsockfd, response, response_size);
+                free(response);
             }
             // Free labels
             for (int i=0; i<num_labels; i++) {
