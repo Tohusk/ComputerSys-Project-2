@@ -271,44 +271,45 @@ void respond_to_unimplemented(unsigned char *packet, int sockfd) {
 
 void add_to_cache(FILE *fptr, unsigned char *response, int response_size, unsigned char **cache, int *cache_size) {
     printf("Adding to cache\n");
-    // Always store most recent result at cache_size-1
-    // if cache is full, move everything up one
-    if (*cache_size == 5) {
-        rotate_left(cache, (*cache_size));
-        // free(cache[*cache_size-1]);
-        // cache[*cache_size-1] = malloc((response_size + HEADER_SIZE) * sizeof(unsigned char));
-        // Since response pointer is pointing to something that will be freed, we should copy it into cache instead
-        // to be freed
-        unsigned char *to_be_cached_response = malloc((response_size + TCP_HEADER_SIZE) * sizeof(unsigned char));
-        to_be_cached_response[0] = response_size >> 8;
-        to_be_cached_response[1] = response_size & 255;
-        // Copy response to temp
-        memcpy(to_be_cached_response+TCP_HEADER_SIZE, response, response_size * sizeof(unsigned char));
-
-        int first_expired_index;
-        if ((first_expired_index = find_expired_entry(cache, (*cache_size))) != -1) {
-            memcpy(cache[first_expired_index], to_be_cached_response, (response_size+TCP_HEADER_SIZE) * sizeof(unsigned char));
-            log_cache_replacement(fptr, cache[first_expired_index], to_be_cached_response);
-        } 
-        else {
+    unsigned char *to_be_cached_response = malloc((response_size + TCP_HEADER_SIZE) * sizeof(unsigned char));
+    to_be_cached_response[0] = response_size >> 8;
+    to_be_cached_response[1] = response_size & 255;
+    // Copy response to temp
+    memcpy(to_be_cached_response+TCP_HEADER_SIZE, response, response_size * sizeof(unsigned char));
+    // Should look to evict before finding new if not cache size 5
+    int first_expired_index;
+    if ((first_expired_index = find_expired_entry(cache, (*cache_size))) != -1) {
+        log_cache_replacement(fptr, cache[first_expired_index], to_be_cached_response);
+        free(cache[first_expired_index]);
+        cache[first_expired_index] = malloc((response_size + TCP_HEADER_SIZE) * sizeof(unsigned char));
+        memcpy(cache[first_expired_index], to_be_cached_response, (response_size+TCP_HEADER_SIZE) * sizeof(unsigned char));
+    } 
+    // no expired entry to evict
+    else {
+        // Always store most recent result at cache_size-1
+        // if cache is full, move everything up one
+        if (*cache_size == 5) {
+            rotate_left(cache, (*cache_size));
+            // Since response pointer is pointing to something that will be freed, we should copy it into cache instead
+            // to be freed
             memcpy(cache[*cache_size-1], to_be_cached_response, (response_size+TCP_HEADER_SIZE) * sizeof(unsigned char));
         }
-        free(to_be_cached_response);
+        else {
+            // malloc space for response + size of packet
+            // Need a free
+            cache[*cache_size] = malloc((response_size + TCP_HEADER_SIZE) * sizeof(unsigned char));
+            unsigned char *to_be_cached_response = malloc((response_size + TCP_HEADER_SIZE) * sizeof(unsigned char));
+            to_be_cached_response[0] = response_size >> 8;
+            to_be_cached_response[1] = response_size & 255;
+            // Copy response to temp
+            memcpy(to_be_cached_response+TCP_HEADER_SIZE, response, response_size * sizeof(unsigned char));
+            // copy temp to cache
+            memcpy(cache[*cache_size], to_be_cached_response, (response_size+TCP_HEADER_SIZE) * sizeof(unsigned char));
+            (*cache_size)++;
+        }
     }
-    else {
-        // malloc space for response + size of packet
-        // Need a free
-        cache[*cache_size] = malloc((response_size + TCP_HEADER_SIZE) * sizeof(unsigned char));
-        unsigned char *to_be_cached_response = malloc((response_size + TCP_HEADER_SIZE) * sizeof(unsigned char));
-        to_be_cached_response[0] = response_size >> 8;
-        to_be_cached_response[1] = response_size & 255;
-        // Copy response to temp
-        memcpy(to_be_cached_response+TCP_HEADER_SIZE, response, response_size * sizeof(unsigned char));
-        // copy temp to cache
-        memcpy(cache[*cache_size], to_be_cached_response, (response_size+TCP_HEADER_SIZE) * sizeof(unsigned char));
-        free(to_be_cached_response);
-        (*cache_size)++;
-    }
+    free(to_be_cached_response);
+
 
     // Can now read size from response
 }
