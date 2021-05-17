@@ -13,7 +13,7 @@
 
 
 #define INITIAL_NUM_LABELS 2
-#define HEADER_SIZE 2
+#define TCP_HEADER_SIZE 2
 #define CACHED_RESULTS 5
 #define TIMEFORMAT "%Y-%m-%dT%H:%M:%S%z "
 #define TIMESIZE 26
@@ -22,7 +22,7 @@
 
 
 void log_request(FILE *fptr, char **labels, int num_labels) {
-    printf("Logging request\n");
+    // printf("Logging request\n");
     log_timestamp(fptr);
     fprintf(fptr, "requested ");
     fflush(fptr);
@@ -39,6 +39,14 @@ void log_request(FILE *fptr, char **labels, int num_labels) {
     }
     fprintf(fptr, "\n");
     fflush(fptr);
+}
+
+void amend_response(unsigned char *cached_response, int response_index, unsigned char *query_packet) {
+    printf("amending response\n");
+    printf("response ID before: %d\n", (cached_response[TCP_HEADER_SIZE] << 8) | cached_response[TCP_HEADER_SIZE+1]);
+    cached_response[TCP_HEADER_SIZE] = query_packet[0];
+    cached_response[TCP_HEADER_SIZE+1] = query_packet[1];
+    printf("response ID after: %d\n", (cached_response[TCP_HEADER_SIZE] << 8) | cached_response[TCP_HEADER_SIZE+1]);
 }
 
 // Only log first response
@@ -139,8 +147,8 @@ int read_from_socket(unsigned char **packet, int sockfd) {
     int bytes_read = 0;
     int n;
 
-    while (bytes_read < HEADER_SIZE) {
-        n = read(sockfd, packet_length_bytes + bytes_read, HEADER_SIZE - bytes_read);
+    while (bytes_read < TCP_HEADER_SIZE) {
+        n = read(sockfd, packet_length_bytes + bytes_read, TCP_HEADER_SIZE - bytes_read);
         if (n < 0) {
         	perror("ERROR reading from socket");
 			exit(EXIT_FAILURE);
@@ -206,12 +214,12 @@ int valid_response(unsigned char *response, int response_size, int finished_inde
 
 // TODO make sure this shit is right
 void write_to_socket(int upstreamsockfd, unsigned char *response, int response_size) {
-    unsigned char header_buff[HEADER_SIZE];
+    unsigned char header_buff[TCP_HEADER_SIZE];
     header_buff[0] = response_size >> 8;
     header_buff[1] = response_size & 255;
 
     int n;
-    n = write(upstreamsockfd, header_buff, HEADER_SIZE);
+    n = write(upstreamsockfd, header_buff, TCP_HEADER_SIZE);
     if (n < 0) {
         perror("socket");
         exit(EXIT_FAILURE);
@@ -263,34 +271,40 @@ void respond_to_unimplemented(unsigned char *packet, int sockfd) {
 
 void add_to_cache(unsigned char *response, int response_size, unsigned char **cache, int *cache_size) {
     printf("Adding to cache\n");
-    // Always store most recent result at cache_size
+    // Always store most recent result at cache_size-1
     // if cache is full, move everything up one
     if (*cache_size == 5) {
         rotate_left(cache, (*cache_size));
-        free(cache[*cache_size]);
-        cache[*cache_size] = malloc((response_size + HEADER_SIZE) * sizeof(unsigned char));
+        // free(cache[*cache_size-1]);
+        // cache[*cache_size-1] = malloc((response_size + HEADER_SIZE) * sizeof(unsigned char));
         // Since response pointer is pointing to something that will be freed, we should copy it into cache instead
         // to be freed
-        unsigned char *to_be_cached_response = malloc((response_size + HEADER_SIZE) * sizeof(unsigned char));
+        unsigned char *to_be_cached_response = malloc((response_size + TCP_HEADER_SIZE) * sizeof(unsigned char));
         to_be_cached_response[0] = response_size >> 8;
         to_be_cached_response[1] = response_size & 255;
         // Copy response to temp
-        memcpy(to_be_cached_response+HEADER_SIZE, response, response_size * sizeof(unsigned char));
-        // copy temp to cache
-        memcpy(cache[*cache_size], to_be_cached_response, (response_size+HEADER_SIZE) * sizeof(unsigned char));
+        memcpy(to_be_cached_response+TCP_HEADER_SIZE, response, response_size * sizeof(unsigned char));
+
+        int first_expired_index;
+        if ((first_expired_index = find_expired_entry(cache, (*cache_size))) != -1) {
+            memcpy(cache[first_expired_index], to_be_cached_response, (response_size+TCP_HEADER_SIZE) * sizeof(unsigned char));
+        } 
+        else {
+            memcpy(cache[*cache_size-1], to_be_cached_response, (response_size+TCP_HEADER_SIZE) * sizeof(unsigned char));
+        }
         free(to_be_cached_response);
     }
     else {
         // malloc space for response + size of packet
         // Need a free
-        cache[*cache_size] = malloc((response_size + HEADER_SIZE) * sizeof(unsigned char));
-        unsigned char *to_be_cached_response = malloc((response_size + HEADER_SIZE) * sizeof(unsigned char));
+        cache[*cache_size] = malloc((response_size + TCP_HEADER_SIZE) * sizeof(unsigned char));
+        unsigned char *to_be_cached_response = malloc((response_size + TCP_HEADER_SIZE) * sizeof(unsigned char));
         to_be_cached_response[0] = response_size >> 8;
         to_be_cached_response[1] = response_size & 255;
         // Copy response to temp
-        memcpy(to_be_cached_response+HEADER_SIZE, response, response_size * sizeof(unsigned char));
+        memcpy(to_be_cached_response+TCP_HEADER_SIZE, response, response_size * sizeof(unsigned char));
         // copy temp to cache
-        memcpy(cache[*cache_size], to_be_cached_response, (response_size+HEADER_SIZE) * sizeof(unsigned char));
+        memcpy(cache[*cache_size], to_be_cached_response, (response_size+TCP_HEADER_SIZE) * sizeof(unsigned char));
         free(to_be_cached_response);
         (*cache_size)++;
     }
@@ -299,16 +313,163 @@ void add_to_cache(unsigned char *response, int response_size, unsigned char **ca
 }
 
 void rotate_left(unsigned char **cache, int cache_size) {
-    printf("left rotation\n");
     if (cache_size < 1) return;
+    unsigned char *tmp = cache[0]; 
     for (int i=0; i<cache_size-1; i++) {
         cache[i] = cache[i+1];
     }
-    printf("rotated\n");
+    cache[cache_size-1] = tmp;
 }
 
 void free_cache(unsigned char **cache, int cache_size) {
     for (int i=0; i<cache_size; i++) {
         free(cache[i]);
     }
+}
+
+int get_answer_index(unsigned char *response) {
+    //  response now includes length of total message 
+    int i=DNS_HEADER_SIZE+TCP_HEADER_SIZE;
+    while (response[i] != 0) {
+        int label_size = response[i];
+        // Current label (Array of characters) + 1 for the null byte
+        i++;
+        for (int j=0; j<label_size; j++) {
+            i++;
+        }
+    }
+    i++;
+    return i+4;
+}
+
+void update_cache_time(unsigned char **cache, int cache_size, long seconds_past) {
+    printf("Updating cache\n");
+    for (int i=0; i<cache_size; i++) {
+        int j = get_answer_index(cache[i]);
+        // j is start of Answer section, name
+        j+=6;
+        // j is at start of TTL
+        unsigned int ttl = (cache[i][j] << 24) | (cache[i][j+1] << 16) | (cache[i][j+2] << 8) | cache[i][j+3];
+        unsigned int new_ttl;
+        if (ttl - seconds_past < 0) {
+            new_ttl = 0;
+        }
+        else {
+            new_ttl = ttl - seconds_past;
+        }
+
+        cache[i][j] = new_ttl >> 24;
+        cache[i][j+1] = new_ttl >> 16;
+        cache[i][j+2] = new_ttl >> 8;
+        cache[i][j+3] = new_ttl & 16777215;
+    }
+}
+
+// What if name and labels don't match up?
+
+// If label fields are the same
+int response_in_cache(unsigned char **cache, int cache_size, char **labels, int labels_size) {
+    printf("Checking if response is in cache\n");
+    if (cache_size != 0) {
+        // Go through all the cache entries
+        for (int i=cache_size-1; i>=0; i--) {
+            unsigned char *response = cache[i];
+            if (check_labels(response, labels) && check_ttl(response)) {
+                return i;
+            }
+        }
+    }
+    return -1;
+}
+
+int check_labels(unsigned char *response, char **labels) {
+    // Check if cache entry has expired
+    int i=DNS_HEADER_SIZE+TCP_HEADER_SIZE;
+    int current_label = 0;
+    while (response[i] != 0) {
+
+        int label_size =response[i];
+        char label[label_size+1];
+        // Current label (Array of characters) + 1 for the null byte
+        i++;
+        for (int j=0; j<label_size; j++) {
+            label[j] = response[i];
+            i++;
+        }
+        label[label_size] = '\0';
+        // If label isn't the same return false
+        if (strcmp(label, labels[current_label]) != 0) {
+            return 0;
+        }
+        current_label++;
+    }
+    return 1;
+}
+
+int check_ttl(unsigned char *response) {
+    int i = get_answer_index(response);
+    i+=6;
+    // j is at start of TTL
+    unsigned int ttl = (response[i] << 24) | (response[i+1] << 16) | (response[i+2] << 8) | response[i+3];
+    if (ttl > 0) {
+        return 1;
+    }
+    else {
+        return 0;
+    }
+}
+
+int find_expired_entry(unsigned char **cache, int cache_size) {
+    for (int i=0; i<cache_size; i++) {
+        int j = get_answer_index(cache[i]);
+        // j is start of Answer section, name
+        j+=6;
+        // j is at start of TTL
+        unsigned int ttl = (cache[i][j] << 24) | (cache[i][j+1] << 16) | (cache[i][j+2] << 8) | cache[i][j+3];
+        // If expired
+        if (ttl == 0) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+void log_cache_response_expiry(FILE *fptr, unsigned char *response, char **labels, int num_labels) {
+    log_timestamp(fptr);
+
+    // Print domain name
+    for (int i=0; i<num_labels; i++) {
+        fprintf(fptr, "%s", labels[i]);
+        fflush(fptr);
+        if (i != num_labels - 1) {
+            fprintf(fptr, ".");
+            fflush(fptr);
+        }
+    }
+
+    fprintf(fptr, " expires at ");
+    fflush(fptr);
+
+    time_t timer;
+    char buffer[TIMESIZE];
+    struct tm* tm_info;
+
+
+    // Response here includes TCP header
+    int i = get_answer_index(response);
+    i+=6;
+    // i is at start of TTL
+    unsigned int ttl = (response[i] << 24) | (response[i+1] << 16) | (response[i+2] << 8) | response[i+3];
+        
+    timer = time(NULL);
+    timer += ttl;
+    tm_info = localtime(&timer);
+
+    strftime(buffer, TIMESIZE, TIMEFORMAT, tm_info);
+
+    fprintf(fptr, "%s", buffer);
+    fflush(fptr);
+
+    fprintf(fptr, "\n");
+    fflush(fptr);
 }

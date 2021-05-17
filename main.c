@@ -7,9 +7,11 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netdb.h>
+#include <time.h>
 #include "helper1.h"
 
 #define CACHED_RESULTS 5
+#define CACHE
 
 
 int main(int argc, char* argv[]) {
@@ -25,6 +27,8 @@ int main(int argc, char* argv[]) {
     // Read response from cache
 
     // Else send to upstream
+
+    int first_timestamp = 1;
 
 
 	int sockfd, newsockfd, re, s;
@@ -80,7 +84,7 @@ int main(int argc, char* argv[]) {
         perror("listen");
         exit(EXIT_FAILURE);
     }
-    printf("Server listening\n");
+    // printf("Server listening\n");
 
 
     // LOG 
@@ -101,7 +105,7 @@ int main(int argc, char* argv[]) {
         FILE *fptr;
         fptr = fopen("dns_svr.log", "a");
     
-        printf("Client Connected\n");
+        // printf("Client Connected\n");
         unsigned char *query_packet;
         int packet_size = read_from_socket(&query_packet, newsockfd);
 
@@ -128,86 +132,118 @@ int main(int argc, char* argv[]) {
             // eviction behaviour 
             // Log
 
-
-
-            // FORWARD TO UPSTREAM
-            int up_sockfd, up_s;
-            struct addrinfo up_hints, *servinfo, *rp;
-
-            // Create address
-            memset(&up_hints, 0, sizeof up_hints);
-            up_hints.ai_family = AF_INET;
-            up_hints.ai_socktype = SOCK_STREAM;
-
-            // Connect to upstream
-            up_s = getaddrinfo(argv[1], argv[2], &up_hints, &servinfo);
-            if (up_s != 0) {
-                fprintf(stderr, "getaddrinfo %s\n", gai_strerror(up_s));
-                exit(EXIT_FAILURE);
+            // Update cache time
+            time_t prev_timestamp;
+            if (first_timestamp == 1) {
+                prev_timestamp = time(NULL);
+                first_timestamp = 0;
+            }
+            else {
+                time_t current_timestamp = time(NULL);
+                long seconds_past = current_timestamp - prev_timestamp;
+                // Update cache TTL values
+                update_cache_time(cache, cache_size, seconds_past);
             }
 
 
-            // Connect to first valid result
-            // Why are there multiple results? see man page (search 'several reasons')
-            // How to search? enter /, then text to search for, press n/N to navigate
-            for (rp = servinfo; rp != NULL; rp = rp->ai_next) {
-                up_sockfd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
-                if (up_sockfd == -1) {
-                    continue;
-                }
-                if (connect(up_sockfd, rp->ai_addr, rp->ai_addrlen) != -1) {
-                    printf("Connected to upstream\n");
-                    break; // success
-                }
-                close(up_sockfd);
-            }
-            if (rp == NULL) {
-                fprintf(stderr, "Failed to connect to upstream\n");
-                exit(EXIT_FAILURE);
-            }
+            // Check cache
+            int response_index;
+            if ((response_index = response_in_cache(cache, cache_size, labels, labels_size)) != -1) {
+                printf("Response in cache at index %d\n", response_index);
+                log_cache_response_expiry(fptr, cache[response_index], labels, num_labels);
+                amend_response(cache[response_index], response_index, query_packet);
+                int response_size = (cache[response_index][0] << 8) | cache[response_index][1]; 
+                // Skip first two bytes
+                unsigned char *response = cache[response_index]+2;
 
-            write_to_socket(up_sockfd, query_packet, packet_size);
-            printf("Sent request to upstream\n");
-
-            free(query_packet);
-
-            // Read response from upstream
-            unsigned char *response;
-            int response_size = read_from_socket(&response, up_sockfd);
-
-            printf("Response read from upstream\n");
-
-            // Cache response
-            // Ahh fuck need to store size
-            add_to_cache(response, response_size, cache, &cache_size);
-            for (int i=0; i<cache_size; i++) {
-                printf("cache element %d: ", i);
-                int rem_len = (cache[i][0] << 8) | cache[i][1];
-                for (int j=2; j<rem_len+2; j++) {
-                    printf("%x ", cache[i][j]);
-                }
-                printf("\n");
-            }
-
-            // If there is no answer in the reply, log the request line only.
-            if (valid_response(response, response_size, finished_index)) {
                 unsigned char *address;
                 int num_elements;
                 extract_address(response, response_size, finished_index, &address, &num_elements);
                 log_response(fptr, labels, num_labels, address, num_elements);
                 free(address);
+
+                write_to_socket(newsockfd, response, response_size);
             }
+
+
+            // NOT IN CACHE
+            else {
+                // FORWARD TO UPSTREAM
+                int up_sockfd, up_s;
+                struct addrinfo up_hints, *servinfo, *rp;
+
+                // Create address
+                memset(&up_hints, 0, sizeof up_hints);
+                up_hints.ai_family = AF_INET;
+                up_hints.ai_socktype = SOCK_STREAM;
+
+                // Connect to upstream
+                up_s = getaddrinfo(argv[1], argv[2], &up_hints, &servinfo);
+                if (up_s != 0) {
+                    fprintf(stderr, "getaddrinfo %s\n", gai_strerror(up_s));
+                    exit(EXIT_FAILURE);
+                }
+
+
+                // Connect to first valid result
+                // Why are there multiple results? see man page (search 'several reasons')
+                // How to search? enter /, then text to search for, press n/N to navigate
+                for (rp = servinfo; rp != NULL; rp = rp->ai_next) {
+                    up_sockfd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+                    if (up_sockfd == -1) {
+                        continue;
+                    }
+                    if (connect(up_sockfd, rp->ai_addr, rp->ai_addrlen) != -1) {
+                        // printf("Connected to upstream\n");
+                        break; // success
+                    }
+                    close(up_sockfd);
+                }
+                if (rp == NULL) {
+                    fprintf(stderr, "Failed to connect to upstream\n");
+                    exit(EXIT_FAILURE);
+                }
+
+                write_to_socket(up_sockfd, query_packet, packet_size);
+                // printf("Sent request to upstream\n");
+
+                free(query_packet);
+
+                // Read response from upstream
+                unsigned char *response;
+                int response_size = read_from_socket(&response, up_sockfd);
+
+                // printf("Response read from upstream\n");
+
+
+                if (valid_response(response, response_size, finished_index)) {
+                    // Cache response
+                    // Should evict expired ones first
+                    add_to_cache(response, response_size, cache, &cache_size);
+
+                    unsigned char *address;
+                    int num_elements;
+                    extract_address(response, response_size, finished_index, &address, &num_elements);
+                    log_response(fptr, labels, num_labels, address, num_elements);
+                    free(address);
+                }
+
+                close(up_sockfd);
+                freeaddrinfo(servinfo);
+                // Send full response to client
+                write_to_socket(newsockfd, response, response_size);
+            }
+            // Free labels
             for (int i=0; i<num_labels; i++) {
                 free(labels[i]);
             }
             free(labels);
 
-            close(up_sockfd);
-            freeaddrinfo(servinfo);
 
-            // Send full response to client
-            write_to_socket(newsockfd, response, response_size);
-            printf("Responded to client\n");
+
+            // // Send full response to client
+            // write_to_socket(newsockfd, response, response_size);
+            // printf("Responded to client\n");
         }
         fclose(fptr);
     }
