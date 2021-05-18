@@ -41,7 +41,7 @@ void log_request(FILE *fptr, char **labels, int num_labels) {
     fflush(fptr);
 }
 
-void amend_response(unsigned char *cached_response, int response_index, unsigned char *query_packet) {
+void amend_response(unsigned char *cached_response, unsigned char *query_packet) {
     printf("amending response\n");
     printf("response ID before: %d\n", (cached_response[TCP_HEADER_SIZE] << 8) | cached_response[TCP_HEADER_SIZE+1]);
     cached_response[TCP_HEADER_SIZE] = query_packet[TCP_HEADER_SIZE];

@@ -20,7 +20,7 @@ void free_cache(unsigned char **cache, int cache_size);
 void update_cache_time(unsigned char **cache, int cache_size, long seconds_past);
 int check_labels(unsigned char *response, char **labels);
 int response_in_cache(unsigned char **cache, int cache_size, char **labels, int labels_size);
-void amend_response(unsigned char *cached_response, int response_index, unsigned char *query_packet);
+void amend_response(unsigned char *cached_response, unsigned char *query_packet);
 int check_ttl(unsigned char *response);
 int find_expired_entry(unsigned char **cache, int cache_size);
 void log_cache_response_expiry(FILE *fptr, unsigned char *response, char **labels, int num_labels);

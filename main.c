@@ -150,9 +150,8 @@ int main(int argc, char* argv[]) {
             if ((response_index = response_in_cache(cache, cache_size, labels, labels_size)) != -1) {
                 printf("Response in cache at index %d\n", response_index);
                 log_cache_response_expiry(fptr, cache[response_index], labels, num_labels);
-                amend_response(cache[response_index], response_index, query_packet);
-                // Skip first two bytes
-                unsigned char *response = cache[response_index]+2;
+                amend_response(cache[response_index], query_packet);
+                unsigned char *response = cache[response_index];
 
                 unsigned char *address;
                 int num_elements;
