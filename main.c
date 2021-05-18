@@ -106,8 +106,7 @@ int main(int argc, char* argv[]) {
         fptr = fopen("dns_svr.log", "a");
     
         // printf("Client Connected\n");
-        unsigned char *query_packet;
-        int packet_size = read_from_socket(&query_packet, newsockfd);
+        unsigned char *query_packet = read_from_socket(newsockfd);
 
         char **labels;
         int labels_size;
@@ -152,18 +151,18 @@ int main(int argc, char* argv[]) {
                 printf("Response in cache at index %d\n", response_index);
                 log_cache_response_expiry(fptr, cache[response_index], labels, num_labels);
                 amend_response(cache[response_index], response_index, query_packet);
-                int response_size = (cache[response_index][0] << 8) | cache[response_index][1]; 
                 // Skip first two bytes
                 unsigned char *response = cache[response_index]+2;
 
                 unsigned char *address;
                 int num_elements;
-                extract_address(response, response_size, finished_index, &address, &num_elements);
+                extract_address(response, finished_index, &address, &num_elements);
                 log_response(fptr, labels, num_labels, address, num_elements);
                 free(address);
 
-                write_to_socket(newsockfd, response, response_size);
+                write_to_socket(newsockfd, response);
                 free(query_packet);
+                // TODO FIX WITH NEW FULL SIZE PACKET
             }
 
 
@@ -205,26 +204,25 @@ int main(int argc, char* argv[]) {
                     exit(EXIT_FAILURE);
                 }
 
-                write_to_socket(up_sockfd, query_packet, packet_size);
+                write_to_socket(up_sockfd, query_packet);
                 // printf("Sent request to upstream\n");
 
                 free(query_packet);
 
                 // Read response from upstream
-                unsigned char *response;
-                int response_size = read_from_socket(&response, up_sockfd);
+                unsigned char *response = read_from_socket(up_sockfd);
 
                 // printf("Response read from upstream\n");
 
 
-                if (valid_response(response, response_size, finished_index)) {
+                if (valid_response(response, finished_index)) {
                     // Cache response
                     // Should evict expired ones first
-                    add_to_cache(fptr, response, response_size, cache, &cache_size);
+                    add_to_cache(fptr, response, cache, &cache_size);
 
                     unsigned char *address;
                     int num_elements;
-                    extract_address(response, response_size, finished_index, &address, &num_elements);
+                    extract_address(response, finished_index, &address, &num_elements);
                     log_response(fptr, labels, num_labels, address, num_elements);
                     free(address);
                 }
@@ -232,14 +230,11 @@ int main(int argc, char* argv[]) {
                 close(up_sockfd);
                 freeaddrinfo(servinfo);
                 // Send full response to client
-                write_to_socket(newsockfd, response, response_size);
+                write_to_socket(newsockfd, response);
                 free(response);
             }
             // Free labels
-            for (int i=0; i<num_labels; i++) {
-                free(labels[i]);
-            }
-            free(labels);
+            free_labels(labels, num_labels);
 
 
 
