@@ -2,6 +2,8 @@
     "files.associations": {
         "fcntl.h": "c",
         "types.h": "c",
-        "unistd.h": "c"
+        "unistd.h": "c",
+        "helper1.h": "c",
+        "log.h": "c"
     }
 }

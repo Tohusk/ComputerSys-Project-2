@@ -1,15 +1,13 @@
-#include <fcntl.h>
-#include <netdb.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netdb.h>
-#include <time.h>
-#include <stdbool.h> 
-#include "helper1.h"
+#include "log.h"
+#include "socket.h"
+#include "parsing.h"
+#include "caching.h"
 
 #define MAX_CACHED_RESPONSES 5
 #define CACHE

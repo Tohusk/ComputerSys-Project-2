@@ -4,7 +4,10 @@
 # COPT - compiler flags
 # BIN - binary
 CC=gcc
-OBJ=helper1.o
+OBJ1=caching.o
+OBJ2=log.o
+OBJ3=parsing.o
+OBJ4=socket.o
 COPT=-Wall -Wpedantic -g
 BIN_PHASE1=phase1
 BIN_PHASE2=dns_svr
@@ -17,11 +20,11 @@ all: $(BIN_PHASE1) $(BIN_PHASE2)
 #     <tab>commands_to_make_target
 # (Note that spaces will not work.)
 
-$(BIN_PHASE2): main.c $(OBJ)
-	$(CC) -o $(BIN_PHASE2) main.c $(OBJ) $(COPT)
+$(BIN_PHASE2): main.c $(OBJ1) $(OBJ2) $(OBJ3) $(OBJ4)
+	$(CC) -o $(BIN_PHASE2) main.c $(OBJ1) $(OBJ2) $(OBJ3) $(OBJ4) $(COPT)
 
 $(BIN_PHASE1): phase1.c $(OBJ)
-	$(CC) -o $(BIN_PHASE1) phase1.c $(OBJ) $(COPT)
+	$(CC) -o $(BIN_PHASE1) phase1.c $(OBJ1) $(OBJ2) $(OBJ3) $(OBJ4) $(COPT)
 
 # Wildcard rule to make any  .o  file,
 # given a .c and .h file with the same leading filename component
