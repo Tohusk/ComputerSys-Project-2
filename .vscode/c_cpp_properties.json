@@ -10,9 +10,9 @@
                 "UNICODE",
                 "_UNICODE"
             ],
-            "cStandard": "c17",
-            "cppStandard": "c++17",
-            "intelliSenseMode": "windows-msvc-x64"
+            "cStandard": "${default}",
+            "cppStandard": "${default}",
+            "intelliSenseMode": "${default}"
         }
     ],
     "version": 4

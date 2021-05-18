@@ -8,9 +8,10 @@
 #include <sys/socket.h>
 #include <netdb.h>
 #include <time.h>
+#include <stdbool.h> 
 #include "helper1.h"
 
-#define CACHED_RESULTS 5
+#define MAX_CACHED_RESPONSES 5
 #define CACHE
 
 
@@ -18,18 +19,10 @@ int main(int argc, char* argv[]) {
 
     
     // Store cache as response packets in array of (array of unsigned char)
-    // ID needs to be modified when reading from cache
-    unsigned char *cache[CACHED_RESULTS];
+    unsigned char *cache[MAX_CACHED_RESPONSES];
     int cache_size = 0;
     
-    // Check if response is in cache
-
-    // Read response from cache
-
-    // Else send to upstream
-
-    int first_timestamp = 1;
-
+    bool first_timestamp = true;
 
 	int sockfd, newsockfd, re, s;
 	struct addrinfo hints, *res;
@@ -84,10 +77,8 @@ int main(int argc, char* argv[]) {
         perror("listen");
         exit(EXIT_FAILURE);
     }
-    // printf("Server listening\n");
 
-
-    // LOG 
+    // Create new empty log file
     FILE *fptr;
     fptr = fopen("dns_svr.log", "w");    
     fclose(fptr);
@@ -101,51 +92,44 @@ int main(int argc, char* argv[]) {
             perror("accept");
             exit(EXIT_FAILURE);
         }
-    
+
+        // Client connected
+
+        // Append to log while running
         FILE *fptr;
         fptr = fopen("dns_svr.log", "a");
-    
-        // printf("Client Connected\n");
+
+        // Read query packet from socket
         unsigned char *query_packet = read_from_socket(newsockfd);
 
         char **labels;
         int labels_size;
         int num_labels;
-
-        // Finished index is first byte of qtype
+        // Extract domain name labels from query packet
         int finished_index = extract_labels(query_packet, &labels, &labels_size, &num_labels);
         log_request(fptr, labels, num_labels);
 
         // Wrong query type DO NOT FORWARD ANY QUERIES
         if (!check_query_type(query_packet, finished_index)) {
-            log_timestamp(fptr);
-            fprintf(fptr, "unimplemented request\n");
-            fflush(fptr);
-            // RESPOND WITH RCODE 4
-            respond_to_unimplemented(query_packet, newsockfd);
+            // Send response packet with RCODE 4
+            respond_to_unimplemented(fptr, query_packet, newsockfd);
         }
         else {
-            // Check cache
-            // Process TTL
-            // ID fields
-            // eviction behaviour 
-            // Log
-
-            // Update cache time
+            // Update cache time only updating when query type is valid
             time_t prev_timestamp;
-            if (first_timestamp == 1) {
+            if (first_timestamp) {
                 prev_timestamp = time(NULL);
-                first_timestamp = 0;
+                first_timestamp = false;
             }
             else {
                 time_t current_timestamp = time(NULL);
-                long seconds_past = current_timestamp - prev_timestamp;
+                time_t seconds_past = current_timestamp - prev_timestamp;
                 // Update cache TTL values
                 update_cache_time(cache, cache_size, seconds_past);
             }
 
 
-            // Check cache
+            // Check cache for response
             int response_index;
             if ((response_index = response_in_cache(cache, cache_size, labels, labels_size)) != -1) {
                 printf("Response in cache at index %d\n", response_index);
@@ -161,13 +145,9 @@ int main(int argc, char* argv[]) {
 
                 write_to_socket(newsockfd, response);
                 free(query_packet);
-                // TODO FIX WITH NEW FULL SIZE PACKET
             }
-
-
-            // NOT IN CACHE
+            // Response not in cache
             else {
-                // FORWARD TO UPSTREAM
                 int up_sockfd, up_s;
                 struct addrinfo up_hints, *servinfo, *rp;
 
@@ -182,7 +162,6 @@ int main(int argc, char* argv[]) {
                     fprintf(stderr, "getaddrinfo %s\n", gai_strerror(up_s));
                     exit(EXIT_FAILURE);
                 }
-
 
                 // Connect to first valid result
                 // Why are there multiple results? see man page (search 'several reasons')
@@ -202,21 +181,17 @@ int main(int argc, char* argv[]) {
                     fprintf(stderr, "Failed to connect to upstream\n");
                     exit(EXIT_FAILURE);
                 }
+                // Connected to upstream
 
+                // Send query upstream
                 write_to_socket(up_sockfd, query_packet);
-                // printf("Sent request to upstream\n");
-
                 free(query_packet);
 
                 // Read response from upstream
                 unsigned char *response = read_from_socket(up_sockfd);
 
-                // printf("Response read from upstream\n");
-
-
                 if (valid_response(response, finished_index)) {
                     // Cache response
-                    // Should evict expired ones first
                     add_to_cache(fptr, response, cache, &cache_size);
 
                     unsigned char *address;
@@ -226,6 +201,7 @@ int main(int argc, char* argv[]) {
                     free(address);
                 }
 
+                // Close upstream connection
                 close(up_sockfd);
                 freeaddrinfo(servinfo);
                 // Send full response to client
@@ -234,24 +210,16 @@ int main(int argc, char* argv[]) {
             }
             // Free labels
             free_labels(labels, num_labels);
-
-
-
-            // // Send full response to client
-            // write_to_socket(newsockfd, response, response_size);
-            // printf("Responded to client\n");
         }
         fclose(fptr);
     }
-
-// The program should be ready to accept another query as soon as it has processed the previous query and response. (If Non-blocking option is implemented, it must be ready before this too.)
 
     // Close client to server socket
     freeaddrinfo(res);
     close(newsockfd);
     close(sockfd);
 
-    // free cache
+    // Free cache
     free_cache(cache, cache_size);
         
     return 0;
