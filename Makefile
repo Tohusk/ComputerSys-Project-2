@@ -4,7 +4,7 @@
 # COPT - compiler flags
 # BIN - binary
 CC=gcc
-OBJFILES = main.o caching.o log.o parsing.o socket.o
+OBJFILES = caching.o log.o parsing.o socket.o
 COPT=-Wall -Wpedantic -g
 BIN_PHASE2=dns_svr
 
@@ -16,8 +16,8 @@ all: $(BIN_PHASE2)
 #     <tab>commands_to_make_target
 # (Note that spaces will not work.)
 
-$(BIN_PHASE2): $(OBJFILES) 
-	$(CC) -o $(BIN_PHASE2) $(OBJFILES) $(COPT)
+$(BIN_PHASE2): main.c $(OBJFILES) 
+	$(CC) -o $(BIN_PHASE2) main.c $(OBJFILES) $(COPT)
 
 
 # Wildcard rule to make any  .o  file,
